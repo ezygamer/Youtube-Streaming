@@ -1,0 +1,195 @@
+/* EzyGamers stream scene. Fixed 1080x1920 canvas: this page IS the video frame. */
+:root {
+  --w: 1080px;
+  --h: 1920px;
+  --bg-1: #0b0820;
+  --bg-2: #1b0f45;
+  --panel: rgba(255, 255, 255, 0.06);
+  --panel-border: rgba(255, 255, 255, 0.14);
+  --text: #f4f2ff;
+  --muted: #a9a3d6;
+  --cyan: #22d3ee;
+  --magenta: #e040fb;
+  --gold: #ffc83d;
+  --red: #ff3b5c;
+  --display: "Orbitron", "Arial Black", Impact, sans-serif;
+  --body: "Rajdhani", "Segoe UI", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: var(--w);
+  height: var(--h);
+  overflow: hidden;
+  background: var(--bg-1);
+  color: var(--text);
+  font-family: var(--body);
+}
+
+#scene {
+  position: relative;
+  width: var(--w);
+  height: var(--h);
+  display: flex;
+  flex-direction: column;
+  padding: 36px 48px 32px;
+  gap: 16px;
+  background:
+    radial-gradient(900px 600px at 15% 0%, rgba(224, 64, 251, 0.25), transparent 60%),
+    radial-gradient(900px 700px at 100% 100%, rgba(34, 211, 238, 0.22), transparent 60%),
+    linear-gradient(180deg, var(--bg-2), var(--bg-1));
+}
+
+/* Everything except the game must ignore the mouse so the bot's clicks reach the iframe. */
+#scene > *:not(#stage), #toasts, #toasts * { pointer-events: none; }
+
+/* ---------- header ---------- */
+#top { text-align: center; }
+#title {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 88px;
+  line-height: 1;
+  letter-spacing: 9px;
+  background: linear-gradient(90deg, var(--cyan), #8b7bff 50%, var(--magenta));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 22px rgba(139, 123, 255, 0.55));
+}
+#chips { margin-top: 14px; display: flex; justify-content: center; gap: 14px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 8px 22px;
+  border-radius: 999px;
+  font-size: 30px; font-weight: 700; letter-spacing: 3px;
+  background: var(--panel);
+  border: 2px solid var(--panel-border);
+}
+.chip.live { background: var(--red); border-color: var(--red); }
+.chip.mode { color: var(--gold); border-color: rgba(255, 200, 61, 0.55); }
+.dot {
+  width: 14px; height: 14px; border-radius: 50%; background: #fff;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.25; } }
+
+/* ---------- stats ---------- */
+#stats { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 18px; }
+.card {
+  background: var(--panel);
+  border: 2px solid var(--panel-border);
+  border-radius: 28px;
+  padding: 10px 18px 6px;
+  text-align: center;
+}
+.label { font-size: 28px; font-weight: 700; letter-spacing: 6px; color: var(--muted); }
+.value {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 68px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.score .value { color: var(--gold); font-size: 80px; text-shadow: 0 0 24px rgba(255, 200, 61, 0.45); }
+#level-goal { font-size: 0.45em; color: var(--muted); margin-left: 4px; }
+.combo.hot { border-color: var(--magenta); box-shadow: 0 0 30px rgba(224, 64, 251, 0.5); }
+.combo.hot .value { color: var(--magenta); }
+.bump { animation: bump 0.35s ease-out; }
+@keyframes bump { 40% { transform: scale(1.12); } }
+
+/* ---------- info bar ---------- */
+#infobar { display: flex; align-items: center; gap: 22px; font-size: 32px; font-weight: 700; }
+#infobar b { font-variant-numeric: tabular-nums; }
+.record { color: var(--gold); white-space: nowrap; }
+.timer { color: var(--muted); white-space: nowrap; }
+.progress {
+  flex: 1; height: 18px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+#progress-fill {
+  width: 0%; height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  transition: width 0.5s ease;
+}
+
+/* ---------- challenge ---------- */
+#challenge {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 24px;
+  border-radius: 22px;
+  background: rgba(34, 211, 238, 0.12);
+  border: 2px solid rgba(34, 211, 238, 0.5);
+  font-size: 34px; font-weight: 700;
+}
+#challenge[hidden] { display: none; }
+.ch-name { flex: 1; }
+.ch-status { color: var(--cyan); font-variant-numeric: tabular-nums; }
+#challenge.done { background: rgba(80, 220, 120, 0.18); border-color: #50dc78; }
+#challenge.done .ch-status { color: #50dc78; }
+#challenge.failed { background: rgba(255, 59, 92, 0.15); border-color: var(--red); }
+#challenge.failed .ch-status { color: var(--red); }
+
+/* ---------- game ---------- */
+#stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#frame-wrap {
+  position: relative;
+  border-radius: 34px;
+  overflow: hidden;
+  border: 4px solid rgba(139, 123, 255, 0.9);
+  box-shadow: 0 0 0 8px rgba(139, 123, 255, 0.15), 0 0 60px rgba(34, 211, 238, 0.35);
+  background: #eef5ff;
+}
+/* Sized and scaled from JS: the game keeps its own phone-sized viewport. */
+#game { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; background: #eef5ff; }
+
+/* ---------- temporary messages ---------- */
+#toasts {
+  position: absolute; left: 0; right: 0; top: 196px; height: 250px;
+  display: flex; align-items: center; justify-content: center;
+}
+.toast {
+  max-width: 92%;
+  padding: 26px 46px;
+  border-radius: 32px;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 64px;
+  text-align: center;
+  line-height: 1.15;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(224, 64, 251, 0.95), rgba(99, 76, 255, 0.95));
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(224, 64, 251, 0.6);
+  animation: toast-in 0.35s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+.toast.gold { background: linear-gradient(135deg, #ffb300, #ff6a00); box-shadow: 0 18px 60px rgba(0,0,0,.55), 0 0 50px rgba(255, 170, 0, .7); }
+.toast.cyan { background: linear-gradient(135deg, #00bcd4, #3d5afe); }
+.toast.red  { background: linear-gradient(135deg, #ff3b5c, #b0003a); }
+.toast.out { animation: toast-out 0.3s ease-in both; }
+@keyframes toast-in { from { transform: scale(0.4) translateY(40px); opacity: 0; } }
+@keyframes toast-out { to { transform: scale(0.8); opacity: 0; } }
+
+/* ---------- footer ---------- */
+#bottom { text-align: center; }
+/* Solid color (not gradient-clipped text) so emoji in the tagline keep their colors. */
+#tagline {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 46px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  color: var(--gold);
+  /* Static glow: an animated text-shadow repaints the footer 60x a second,
+     which costs real CPU in the capture. */
+  text-shadow: 0 0 22px rgba(255, 130, 40, 0.85);
+}
+#cta { margin-top: 6px; font-size: 32px; font-weight: 600; color: var(--muted); letter-spacing: 1px; }

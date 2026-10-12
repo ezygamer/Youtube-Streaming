@@ -1,0 +1,130 @@
+{
+  "width": 1080,
+  "height": 1920,
+  "overlay": {
+    "title": "EZYGAMERS",
+    "tagline": "🔥 CAN YOU BEAT THE SCORE?",
+    "cta": "Play free at play.ezygamers.com",
+    "update_interval_ms": 500,
+    "message_ms": 2200,
+    "messages": {
+      "game_started": {
+        "speed_run": {
+          "text": "⚡ SPEED MODE!",
+          "kind": "cyan"
+        },
+        "challenge": {
+          "text": "🎯 {challenge}",
+          "kind": "cyan"
+        },
+        "default": {
+          "text": "CAN THE BOT BEAT THE RECORD?",
+          "kind": ""
+        },
+        "marathon": {
+          "text": "🏁 ROAD TO LEVEL 100!",
+          "kind": "cyan"
+        }
+      },
+      "level_up": {
+        "text": "⭐ STAGE {level}!",
+        "kind": "cyan"
+      },
+      "combo": {
+        "text": "COMBO x{combo}!",
+        "kind": ""
+      },
+      "new_high_score": {
+        "text": "🔥 NEW HIGH SCORE!",
+        "kind": "gold"
+      },
+      "game_over": {
+        "text": "OUT OF MOVES! {score} PTS",
+        "kind": "red"
+      },
+      "game_over_continue": {
+        "text": "OUT OF MOVES… TRY AGAIN!",
+        "kind": "red"
+      },
+      "challenge_completed": {
+        "text": "🏆 CHALLENGE COMPLETE!",
+        "kind": "gold"
+      },
+      "challenge_failed": {
+        "text": "⏱ CHALLENGE FAILED",
+        "kind": "red"
+      },
+      "goal_reached": {
+        "marathon": {
+          "text": "🏆 LEVEL {goal_level} COMPLETE! {score} PTS",
+          "kind": "gold"
+        },
+        "default": {
+          "text": "⚡ GOAL REACHED IN {time}!",
+          "kind": "gold"
+        }
+      },
+      "milestone": {
+        "marathon": {
+          "text": "🔥 {cleared} LEVELS DONE! {remaining} TO GO",
+          "kind": "gold"
+        },
+        "default": {
+          "text": "🔥 {cleared} LEVELS DONE!",
+          "kind": "gold"
+        }
+      }
+    },
+    "celebration_ms": 6000
+  },
+  "output": {
+    "fps": 30,
+    "jpeg_quality": 85,
+    "recordings_dir": "recordings",
+    "stats_log_interval_s": 30,
+    "video": {
+      "codec": "libx264",
+      "preset": "veryfast",
+      "bitrate": "6000k",
+      "maxrate": "6000k",
+      "bufsize": "12000k",
+      "keyframe_seconds": 2,
+      "extra_args": []
+    },
+    "audio": {
+      "game_sounds": true,
+      "game_volume": 1.0,
+      "sound_volumes": {
+        "match": 1.0,
+        "click": 1.0,
+        "win": 1.0,
+        "low_matches": 1.0
+      },
+      "music_file": "assets/music.mp3",
+      "music_volume": 0.35,
+      "bitrate": "128k"
+    },
+    "recordings": {
+      "dir": "recordings",
+      "overlay": true,
+      "clean": true,
+      "segment_minutes": 60,
+      "max_total_gb": 60,
+      "min_free_disk_gb": 20,
+      "video": {
+        "crf": 23,
+        "maxrate": "6000k",
+        "bufsize": "12000k",
+        "preset": "veryfast"
+      }
+    },
+    "capture_every_nth_frame": 2
+  },
+  "watchdog": {
+    "browser_refresh_minutes": 60,
+    "slow_move_factor": 1.6,
+    "bot_hung_seconds": 180,
+    "no_frames_seconds": 30,
+    "heartbeat_minutes": 5
+  }
+}

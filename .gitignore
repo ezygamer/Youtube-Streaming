@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+logs/
+probe_output/
+data/
+recordings/
+.pytest_cache/
+*.tmp
+# Game sound effects are downloaded automatically on first run (cache).
+assets/sfx/
+# Background music is yours to add locally (copyright): assets/music.mp3
+assets/*.mp3
+assets/*.m4a
+assets/*.wav

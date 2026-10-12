@@ -1,0 +1,102 @@
+{
+  "name": "SumLink",
+  "adapter": "games.sumlink.adapter:SumLinkAdapter",
+  "build_dir": "games/sumlink/build",
+  "url": null,
+  "language_path": "/english",
+  "game_over_text": "Out of Moves!",
+  "try_again_text": "Try Again",
+  "viewport": {
+    "width": 450,
+    "height": 800
+  },
+  "stream": {
+    "game_viewport": {
+      "width": 540,
+      "height": 900
+    }
+  },
+  "timing": {
+    "click_delay_ms": 250,
+    "settle_timeout_ms": 5000,
+    "settle_quiet_ms": 300,
+    "load_timeout_ms": 15000
+  },
+  "default_mode": "normal",
+  "modes": {
+    "marathon": {
+      "label": "Level 100",
+      "strategy": "rollout",
+      "on_game_over": "restart",
+      "goal": {
+        "levels_cleared": 100
+      },
+      "pause_after_goal_s": 10,
+      "timing": {
+        "click_delay_ms": 120,
+        "settle_quiet_ms": 120
+      }
+    },
+    "normal": {
+      "label": "Normal",
+      "strategy": "first_pair",
+      "on_game_over": "restart"
+    },
+    "high_score": {
+      "label": "High Score",
+      "strategy": "rollout",
+      "on_game_over": "restart"
+    },
+    "speed_run": {
+      "label": "Speed Run",
+      "strategy": "rollout",
+      "on_game_over": "restart",
+      "goal": {
+        "level": 6
+      },
+      "timing": {
+        "click_delay_ms": 80,
+        "settle_quiet_ms": 150
+      }
+    },
+    "endless": {
+      "label": "Endless",
+      "strategy": "first_pair",
+      "on_game_over": "continue"
+    },
+    "challenge": {
+      "label": "Challenge",
+      "strategy": "rollout",
+      "on_game_over": "restart",
+      "challenges": [
+        {
+          "name": "Score 1,000 points",
+          "goal": {
+            "score": 1000
+          },
+          "time_limit_s": 900
+        },
+        {
+          "name": "Reach stage 8",
+          "goal": {
+            "level": 8
+          },
+          "time_limit_s": 1200
+        },
+        {
+          "name": "Score 500 in 5 minutes",
+          "goal": {
+            "score": 500
+          },
+          "time_limit_s": 300
+        }
+      ]
+    }
+  },
+  "sounds": {
+    "match": "https://codeskulptor-demos.commondatastorage.googleapis.com/descent/gotitem.mp3",
+    "click": "https://commondatastorage.googleapis.com/codeskulptor-assets/sounddogs/click.mp3",
+    "win": "https://commondatastorage.googleapis.com/codeskulptor-assets/week7-brrring.m4a",
+    "low_matches": "https://raw.githubusercontent.com/sneha-xorstack/teluskoTraining/master/English%20Toast.mp3"
+  }
+}

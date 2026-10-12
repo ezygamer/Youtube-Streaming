@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+  EzyGamers 9:16 stream scene (1080x1920).
+  The game runs unmodified in <iframe id="game">; the bot navigates it.
+  Python drives this page through window.ezOverlay (see overlay.js):
+    ezOverlay.configure({title, tagline, cta})
+    ezOverlay.update(status)              // score, level, combo, mode, ...
+    ezOverlay.message(text, kind, ms)     // temporary banner
+  Query params: w, h = the game's own viewport in CSS px (it is scaled to fit).
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>EzyGamers Stream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body>
+  <div id="scene">
+    <header id="top">
+      <h1 id="title">EZYGAMERS</h1>
+      <div id="chips">
+        <span class="chip live"><i class="dot"></i>LIVE</span>
+        <span class="chip" id="game-name">SUMLINK</span>
+        <span class="chip mode" id="mode">NORMAL MODE</span>
+      </div>
+    </header>
+
+    <section id="stats">
+      <div class="card score">
+        <div class="label">SCORE</div>
+        <div class="value" id="score">0</div>
+      </div>
+      <div class="card">
+        <div class="label">STAGE</div>
+        <div class="value"><span id="level">1</span><span id="level-goal"></span></div>
+      </div>
+      <div class="card combo" id="combo-card">
+        <div class="label">COMBO</div>
+        <div class="value" id="combo">x0</div>
+      </div>
+    </section>
+
+    <section id="infobar">
+      <span class="record">👑 RECORD <b id="record">0</b></span>
+      <div class="progress" title="Stage progress"><div id="progress-fill"></div></div>
+      <span class="timer">⏱ <b id="timer">0:00</b></span>
+    </section>
+
+    <section id="challenge" hidden>
+      <span class="ch-icon">🎯</span>
+      <span class="ch-name" id="challenge-name"></span>
+      <span class="ch-status" id="challenge-status"></span>
+    </section>
+
+    <main id="stage">
+      <div id="frame-wrap">
+        <iframe id="game" title="Game" scrolling="no"></iframe>
+      </div>
+    </main>
+
+    <footer id="bottom">
+      <div id="tagline">🔥 CAN YOU BEAT THE SCORE?</div>
+      <div id="cta">Play free at play.ezygamers.com</div>
+    </footer>
+    <!-- Banners sit over the header/stats, never over the game: the clean
+         game-only recording is cropped from the game area. -->
+    <div id="toasts"></div>
+  </div>
+  <script src="overlay.js"></script>
+</body>
+</html>
