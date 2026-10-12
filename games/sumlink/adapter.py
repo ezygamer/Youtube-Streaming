@@ -52,6 +52,9 @@ class SumLinkAdapter(GameAdapter):
         self.click_delay = t.get("click_delay_ms", 250) / 1000
         self.settle_timeout = t.get("settle_timeout_ms", 5000) / 1000
         self.settle_quiet = t.get("settle_quiet_ms", 300) / 1000
+        # Extra pause after each move, purely for viewers (the game is ready
+        # sooner). This is the main "speed" knob for the stream.
+        self.move_pause = t.get("move_pause_ms", 0) / 1000
         self.load_timeout_ms = t.get("load_timeout_ms", 15000)
         self.game_over_text = config.get("game_over_text", "Out of Moves!")
         self.url = (config.get("url") or base_url).rstrip("/") + config.get("language_path", "/english")
@@ -290,9 +293,11 @@ class SumLinkAdapter(GameAdapter):
             ok = await self.make_match(*decision.pair)
             if not ok:
                 raise GameNotReadyError(f"Match {decision.pair} was not accepted by the game")
+            await asyncio.sleep(self.move_pause)
             return StepResult("scored", f"match {decision.pair[0]}+{decision.pair[1]}")
         if decision.kind == "add_row":
             if not await self.add_row():
                 raise GameNotReadyError("Add row was not accepted by the game")
+            await asyncio.sleep(self.move_pause)
             return StepResult("assist", "add row")
         return StepResult("game_over")

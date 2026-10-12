@@ -33,8 +33,9 @@
       },
       "pause_after_goal_s": 10,
       "timing": {
-        "click_delay_ms": 120,
-        "settle_quiet_ms": 120
+        "click_delay_ms": 400,
+        "settle_quiet_ms": 150,
+        "move_pause_ms": 900
       }
     },
     "normal": {
