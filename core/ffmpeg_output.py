@@ -40,12 +40,14 @@ def find_ffmpeg() -> str | None:
 
 @dataclass
 class OutputTarget:
-    kind: str          # "youtube" | "file" | "segments"
+    kind: str          # "youtube" | "kick" | "twitch" | "tee" | "file" | "segments"
     destination: str   # RTMP URL (contains the key!), file path, or segment filename pattern
     secret: str = ""   # value to mask in logs
+    extra_secrets: tuple[str, ...] = ()   # more values to mask ("tee": one key per platform)
     crop: tuple[int, int, int, int] | None = None   # (w, h, x, y) of the frame to keep
     segment_seconds: int = 3600                      # "segments": length of each file
     video: dict = field(default_factory=dict)        # per-output overrides of cfg["video"]
+    vfilter: str = ""                                # extra FFmpeg video filter (after crop)
     label: str = ""
 
 
@@ -55,6 +57,58 @@ def youtube_target() -> OutputTarget:
     if not key:
         raise RuntimeError("YOUTUBE_STREAM_KEY is not set. Copy .env.example to .env and add your stream key.")
     return OutputTarget("youtube", f"{base}/{key}", secret=key, label="youtube")
+
+
+# Kick runs on Amazon IVS, which is stricter than YouTube: a portrait 1080x1920
+# feed showed up black/frozen in Kick's player. Kick and Twitch players are
+# landscape, so by default the vertical scene is centred in a 1920x1080 frame,
+# encoded as H.264 Main profile without B-frames at a constant bitrate (their
+# recommended OBS settings). <PREFIX>_LAYOUT=portrait sends it unchanged.
+# Bitrate: Kick flagged the session UNSTABLE at 6 Mbit/s (our upload ran at 0.9x
+# real time); this mostly static scene looks fine at 3.5 Mbit/s.
+_LANDSCAPE = "scale=-2:1080,pad=1920:1080:(ow-iw)/2:0:color=black,setsar=1"
+
+
+def _platform_target(kind: str, prefix: str, default_url: str, where: str) -> OutputTarget:
+    key = os.getenv(f"{prefix}_STREAM_KEY", "").strip()
+    base = (os.getenv(f"{prefix}_STREAM_URL", "").strip() or default_url).rstrip("/")
+    if not key or not base:
+        need = f"{prefix}_STREAM_KEY" if base else f"{prefix}_STREAM_URL and {prefix}_STREAM_KEY"
+        raise RuntimeError(f"{need} must be set in .env ({where}).")
+    portrait = os.getenv(f"{prefix}_LAYOUT", "landscape").strip().lower() == "portrait"
+    bitrate = os.getenv(f"{prefix}_BITRATE", "3500k").strip() or "3500k"
+    return OutputTarget(kind, f"{base}/{key}", secret=key, label=kind, vfilter="" if portrait else _LANDSCAPE,
+                        video={"profile": "main", "bframes": 0, "cbr": True, "bitrate": bitrate,
+                               "maxrate": bitrate, "bufsize": bitrate})
+
+
+def kick_target() -> OutputTarget:
+    # The Kick Stream URL (rtmps://...:443/app) is per channel, so no default.
+    return _platform_target("kick", "KICK", "", "kick.com > Creator Dashboard > Settings > Stream Key")
+
+
+def twitch_target() -> OutputTarget:
+    # Twitch picks the nearest ingest server for this URL.
+    return _platform_target("twitch", "TWITCH", "rtmp://live.twitch.tv/app",
+                            "twitch.tv > Creator Dashboard > Settings > Stream > Primary Stream key")
+
+
+def multi_platform_target(targets: list[OutputTarget]) -> OutputTarget:
+    """Send ONE encode to several platforms (FFmpeg's tee muxer).
+
+    Two separate encoders would double the CPU load; the tee muxer encodes once
+    and uploads the same packets to each platform. All targets must share video
+    settings (Kick and Twitch do). Upload still doubles, so the bitrate comes
+    from MULTI_STREAM_BITRATE (default 2500k: 2 x 2.5 = 5 Mbit/s, which our line
+    sustains; Kick alone at 6 Mbit/s did not). If one platform drops, FFmpeg
+    exits and the supervisor restarts both a few seconds later.
+    """
+    bitrate = os.getenv("MULTI_STREAM_BITRATE", "2500k").strip() or "2500k"
+    video = {**targets[0].video, "bitrate": bitrate, "maxrate": bitrate, "bufsize": bitrate}
+    slaves = "|".join(f"[f=flv:flvflags=no_duration_filesize]{t.destination}" for t in targets)
+    return OutputTarget("tee", slaves, secret=targets[0].secret,
+                        extra_secrets=tuple(t.secret for t in targets[1:]),
+                        label="+".join(t.label for t in targets), vfilter=targets[0].vfilter, video=video)
 
 
 def file_target(directory: str | Path, name: str | None = None) -> OutputTarget:
@@ -114,6 +168,12 @@ class FfmpegOutput:
         gop = int(self.fps * v.get("keyframe_seconds", 2))
         codec = v.get("codec", "libx264")
         args = ["-c:v", codec, "-pix_fmt", "yuv420p", "-r", str(self.fps), "-g", str(gop), "-keyint_min", str(gop)]
+        if v.get("profile"):
+            args += ["-profile:v", v["profile"]]
+        if "bframes" in v:
+            args += ["-bf", str(v["bframes"])]
+        if v.get("cbr") and codec == "libx264":
+            args += ["-x264-params", "nal-hrd=cbr"]
         if "crf" in v:
             # Quality-based (recordings): small files for this mostly static scene.
             args += ["-crf", str(v["crf"])]
@@ -131,7 +191,10 @@ class FfmpegOutput:
     def _muxer_args(t: OutputTarget) -> list[str]:
         # Fragmented MP4 stays playable even if the process is killed.
         frag = "+frag_keyframe+empty_moov+default_base_moof"
-        if t.kind == "youtube":
+        if t.kind == "tee":
+            # FLV needs the H.264/AAC headers up front; the tee muxer won't ask for them itself.
+            return ["-flags", "+global_header", "-f", "tee", t.destination]
+        if t.kind in ("youtube", "kick", "twitch"):
             return ["-f", "flv", "-flvflags", "no_duration_filesize", t.destination]
         if t.kind == "segments":
             return ["-f", "segment", "-segment_time", str(t.segment_seconds), "-reset_timestamps", "1",
@@ -152,16 +215,21 @@ class FfmpegOutput:
 
         # One decoded input, split into one video stream per output (cropped if asked).
         n = len(self.targets)
-        if n == 1 and not self.target.crop:
+        if n == 1 and not self.target.crop and not self.target.vfilter:
             video_maps = ["0:v"]
         else:
             chains = [f"[0:v]split={n}" + "".join(f"[s{i}]" for i in range(n))] if n > 1 else []
             video_maps = []
             for i, t in enumerate(self.targets):
                 src = f"[s{i}]" if n > 1 else "[0:v]"
+                filters = []
                 if t.crop:
                     w, h, x, y = t.crop
-                    chains.append(f"{src}crop={w}:{h}:{x}:{y}[v{i}]")
+                    filters.append(f"crop={w}:{h}:{x}:{y}")
+                if t.vfilter:
+                    filters.append(t.vfilter)
+                if filters:
+                    chains.append(f"{src}{','.join(filters)}[v{i}]")
                     video_maps.append(f"[v{i}]")
                 else:
                     video_maps.append(src)
@@ -177,8 +245,9 @@ class FfmpegOutput:
 
     def _redact(self, text: str) -> str:
         for t in self.targets:
-            if t.secret:
-                text = text.replace(t.secret, "****")
+            for secret in (t.secret, *t.extra_secrets):
+                if secret:
+                    text = text.replace(secret, "****")
         return text
 
     # ---------- lifecycle ----------
