@@ -40,7 +40,7 @@ def find_ffmpeg() -> str | None:
 
 @dataclass
 class OutputTarget:
-    kind: str          # "youtube" | "kick" | "twitch" | "tee" | "file" | "segments"
+    kind: str          # "youtube" | "kick" | "twitch" | "facebook" | "tee" | "file" | "segments"
     destination: str   # RTMP URL (contains the key!), file path, or segment filename pattern
     secret: str = ""   # value to mask in logs
     extra_secrets: tuple[str, ...] = ()   # more values to mask ("tee": one key per platform)
@@ -93,17 +93,27 @@ def twitch_target() -> OutputTarget:
                             "twitch.tv > Creator Dashboard > Settings > Stream > Primary Stream key")
 
 
+def facebook_target() -> OutputTarget:
+    # Facebook Live accepts RTMPS only (plain rtmp:// is refused).
+    return _platform_target("facebook", "FACEBOOK", "rtmps://live-api-s.facebook.com:443/rtmp",
+                            "facebook.com > Live Producer > Streaming software > Stream key")
+
+
 def multi_platform_target(targets: list[OutputTarget]) -> OutputTarget:
     """Send ONE encode to several platforms (FFmpeg's tee muxer).
 
     Two separate encoders would double the CPU load; the tee muxer encodes once
     and uploads the same packets to each platform. All targets must share video
     settings (Kick and Twitch do). Upload still doubles, so the bitrate comes
-    from MULTI_STREAM_BITRATE (default 2500k: 2 x 2.5 = 5 Mbit/s, which our line
-    sustains; Kick alone at 6 Mbit/s did not). If one platform drops, FFmpeg
+    from MULTI_STREAM_BITRATE (default 1800k). Measured on our Wi-Fi: 2 x 2.5 Mbit/s
+    ran at 0.9x real time (Kick then buffers; Twitch hides it better), so the
+    two uploads together must stay well under the line's ~5.5 Mbit/s. If one platform drops, FFmpeg
     exits and the supervisor restarts both a few seconds later.
     """
-    bitrate = os.getenv("MULTI_STREAM_BITRATE", "2500k").strip() or "2500k"
+    if len({t.vfilter for t in targets}) > 1:
+        raise RuntimeError("Streaming to several platforms at once needs the same layout for all of them "
+                           "(set KICK_LAYOUT / TWITCH_LAYOUT / FACEBOOK_LAYOUT to the same value).")
+    bitrate = os.getenv("MULTI_STREAM_BITRATE", "1800k").strip() or "1800k"
     video = {**targets[0].video, "bitrate": bitrate, "maxrate": bitrate, "bufsize": bitrate}
     slaves = "|".join(f"[f=flv:flvflags=no_duration_filesize]{t.destination}" for t in targets)
     return OutputTarget("tee", slaves, secret=targets[0].secret,
@@ -194,7 +204,7 @@ class FfmpegOutput:
         if t.kind == "tee":
             # FLV needs the H.264/AAC headers up front; the tee muxer won't ask for them itself.
             return ["-flags", "+global_header", "-f", "tee", t.destination]
-        if t.kind in ("youtube", "kick", "twitch"):
+        if t.kind in ("youtube", "kick", "twitch", "facebook"):
             return ["-f", "flv", "-flvflags", "no_duration_filesize", t.destination]
         if t.kind == "segments":
             return ["-f", "segment", "-segment_time", str(t.segment_seconds), "-reset_timestamps", "1",

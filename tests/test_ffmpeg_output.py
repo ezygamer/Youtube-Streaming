@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from core.ffmpeg_output import FfmpegOutput, OutputTarget, file_target, kick_target, multi_platform_target, twitch_target, youtube_target
+from core.ffmpeg_output import FfmpegOutput, OutputTarget, facebook_target, file_target, kick_target, multi_platform_target, twitch_target, youtube_target
 
 CFG = {"fps": 30, "video": {"codec": "libx264", "bitrate": "6000k"}, "audio": {"source": "silent"}}
 
@@ -69,11 +69,25 @@ def test_kick_and_twitch_share_one_encode(monkeypatch):
     args = out.build_args()
     cmd = " ".join(args)
     assert cmd.count("-c:v libx264") == 1                 # encoded once
-    assert "-f tee" in cmd and "-b:v 2500k" in cmd and "pad=1920:1080" in cmd
+    assert "-f tee" in cmd and "-b:v 1800k" in cmd and "pad=1920:1080" in cmd
     assert args[-1] == ("[f=flv:flvflags=no_duration_filesize]rtmps://kick.example:443/app/sk_kick_secret|"
                         "[f=flv:flvflags=no_duration_filesize]rtmp://live.twitch.tv/app/live_twitch_secret")
     red = out._redact(cmd)
     assert "sk_kick_secret" not in red and "live_twitch_secret" not in red
+
+
+def test_facebook_target_uses_rtmps_and_combines(monkeypatch):
+    monkeypatch.setenv("FACEBOOK_STREAM_KEY", "FB-secret-key")
+    monkeypatch.setenv("TWITCH_STREAM_KEY", "live_twitch_secret")
+    t = facebook_target()
+    assert t.destination == "rtmps://live-api-s.facebook.com:443/rtmp/FB-secret-key"
+    both = multi_platform_target([twitch_target(), t])
+    out = make(both)
+    red = out._redact(" ".join(out.build_args()))
+    assert "FB-secret-key" not in red and "live_twitch_secret" not in red
+    monkeypatch.setenv("FACEBOOK_LAYOUT", "portrait")
+    with pytest.raises(RuntimeError, match="same layout"):
+        multi_platform_target([twitch_target(), facebook_target()])
 
 
 def test_stream_settings(tmp_path):

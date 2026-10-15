@@ -29,7 +29,7 @@ from core.capture import ScreencastCapture
 from core.config import ROOT, load_adapter_class, load_game_config, load_stream_config, resolve_mode
 from core.event_log import log_event
 from core.events import EventBus
-from core.ffmpeg_output import (FfmpegOutput, OutputTarget, file_target, find_ffmpeg, kick_target,
+from core.ffmpeg_output import (FfmpegOutput, OutputTarget, file_target, facebook_target, find_ffmpeg, kick_target,
                                 multi_platform_target, twitch_target, youtube_target)
 from core.game_server import GameServer
 from core.game_view import DirectView, StreamView
@@ -52,6 +52,7 @@ class AppOptions:
     live: bool = False            # YouTube
     kick: bool = False            # Kick
     twitch: bool = False          # Twitch
+    facebook: bool = False        # Facebook
     record: bool = False          # overlay + clean recordings (segmented)
     test_file: bool = False       # one MP4 file (quick test)
     runs: int | None = None
@@ -72,7 +73,7 @@ class _Output:
 class StreamApp:
     def __init__(self, opts: AppOptions):
         self.opts = opts
-        if opts.live or opts.kick or opts.twitch or opts.record or opts.test_file:
+        if opts.live or opts.kick or opts.twitch or opts.facebook or opts.record or opts.test_file:
             opts.stream = True
         self.config = load_game_config(opts.game)
         self.mode_name, self.mode = resolve_mode(self.config, opts.mode)
@@ -106,7 +107,7 @@ class StreamApp:
 
     def _check_outputs(self) -> str | None:
         """Validate output requirements before starting anything. Returns an error."""
-        if not (self.opts.live or self.opts.kick or self.opts.twitch or self.opts.record or self.opts.test_file):
+        if not (self.opts.live or self.opts.kick or self.opts.twitch or self.opts.facebook or self.opts.record or self.opts.test_file):
             return None
         self.ffmpeg = find_ffmpeg()
         if not self.ffmpeg:
@@ -131,6 +132,12 @@ class StreamApp:
             except RuntimeError as exc:
                 return str(exc)
             log.info("Twitch stream key in use ends in ...%s", t.secret[-4:])
+        if self.opts.facebook:
+            try:
+                t = facebook_target()
+            except RuntimeError as exc:
+                return str(exc)
+            log.info("Facebook stream key in use ends in ...%s", t.secret[-4:])
         if self.config.get("url"):
             return "Stream output needs the game served locally (set 'url' to null in the game config)"
         return None
@@ -145,13 +152,14 @@ class StreamApp:
 
         if o.live:
             make("youtube", lambda: [youtube_target()])
-        if o.kick and o.twitch:
-            # One encode, uploaded to both (two encoders would overload the CPU).
-            make("kick+twitch", lambda: [multi_platform_target([kick_target(), twitch_target()])])
-        elif o.kick:
-            make("kick", lambda: [kick_target()])
-        elif o.twitch:
-            make("twitch", lambda: [twitch_target()])
+        platforms = [(n, fn) for n, on, fn in (("kick", o.kick, kick_target), ("twitch", o.twitch, twitch_target),
+                                               ("facebook", o.facebook, facebook_target)) if on]
+        if len(platforms) > 1:
+            # One encode, uploaded to all (several encoders would overload the CPU).
+            make("+".join(n for n, _ in platforms), lambda: [multi_platform_target([fn() for _, fn in platforms])])
+        elif platforms:
+            n, fn = platforms[0]
+            make(n, lambda: [fn()])
         if o.record:
             async_crop = {"value": None}
             self._crop_holder = async_crop
@@ -425,7 +433,7 @@ class StreamApp:
         if self.outputs:
             await asyncio.to_thread(self._setup_audio)
         janitor = RecordingJanitor(self.out_cfg, ROOT) if self.opts.record else None
-        always_on = self.opts.live or self.opts.kick or self.opts.twitch or self.opts.record
+        always_on = self.opts.live or self.opts.kick or self.opts.twitch or self.opts.facebook or self.opts.record
         if always_on:
             keep_awake(True)
         if self.opts.duration:
@@ -438,9 +446,9 @@ class StreamApp:
         no_frames_s = wd.get("no_frames_seconds", 30)
         exit_code = 0
         last = {"snap": 0.0, "status": 0.0, "beat": time.monotonic(), "janitor": 0.0, "crop": time.monotonic()}
-        log.info("Starting %s in %s mode%s%s%s%s%s", self.config["name"], self.mode.get("label", self.mode_name),
+        log.info("Starting %s in %s mode%s%s%s%s%s%s", self.config["name"], self.mode.get("label", self.mode_name),
                  " | LIVE on YouTube" if self.opts.live else "", " | LIVE on Kick" if self.opts.kick else "",
-                 " | LIVE on Twitch" if self.opts.twitch else "",
+                 " | LIVE on Twitch" if self.opts.twitch else "", " | LIVE on Facebook" if self.opts.facebook else "",
                  " | recording" if self.opts.record else "",
                  " | test file" if self.opts.test_file else "")
         try:

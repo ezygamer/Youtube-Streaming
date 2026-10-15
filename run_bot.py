@@ -36,6 +36,8 @@ def parse_args():
                    help="stream to Kick (needs KICK_STREAM_URL and KICK_STREAM_KEY in .env); works with or without --live")
     p.add_argument("--twitch", action="store_true",
                    help="stream to Twitch (needs TWITCH_STREAM_KEY in .env); combinable with --live/--kick")
+    p.add_argument("--facebook", action="store_true",
+                   help="stream to Facebook Live (needs FACEBOOK_STREAM_KEY in .env); combinable with --kick/--twitch")
     p.add_argument("--record", action="store_true",
                    help="save overlay + clean game-only recordings in recordings/ (1-hour files)")
     p.add_argument("--output", choices=["none", "file", "youtube"], default="none",
@@ -63,7 +65,7 @@ async def main(args) -> int:
     install_ctrl_c(stop)
     app = StreamApp(AppOptions(
         game=args.game, mode=args.mode, headless=args.headless, preview_scale=args.preview_scale,
-        stream=args.stream, live=args.live or args.output == "youtube", kick=args.kick, twitch=args.twitch, record=args.record,
+        stream=args.stream, live=args.live or args.output == "youtube", kick=args.kick, twitch=args.twitch, facebook=args.facebook, record=args.record,
         test_file=args.output == "file", runs=args.runs, duration=args.duration,
     ))
     return await app.run(stop)
